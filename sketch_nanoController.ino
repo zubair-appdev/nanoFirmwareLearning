@@ -14,11 +14,20 @@ uint8_t rxIndex = 0;
 bool packetReady = false;
 
 // Command Id's from GUI
-const uint8_t CMD_LED = 0x01;
-const uint8_t PWM_LED = 0x02;
+const uint8_t CMD_ID = 0x01;
+const uint8_t PWM_ID = 0x02;
+const uint8_t ADC_ON_ID = 0x03;
+const uint8_t ADC_OFF_ID = 0x04;
 
 // PIN NAMES
 const uint8_t PWM_PIN = 10;
+
+const uint8_t ANALOG_PIN = A1;
+
+// GLOBAL VARIABLES FOR ADC SENSING
+bool adcStreaming = false;
+uint32_t previousADCmillis = 0;
+const uint16_t ADC_INTERVAL = 2;
 
 void receivePacket() 
 {
@@ -64,7 +73,7 @@ void processPacket() {
   uint8_t commandId = rxBuffer[3];
 
   switch (commandId) {
-    case CMD_LED:
+    case CMD_ID:
       {
         uint16_t blinkCount = (rxBuffer[5] << 8) | rxBuffer[4];
         uint8_t duration = rxBuffer[6];
@@ -74,7 +83,7 @@ void processPacket() {
       }
       break;
 
-    case PWM_LED:
+    case PWM_ID:
       {
         uint8_t brightness = rxBuffer[4];
         uint16_t duration = ( rxBuffer[6] << 8 ) | rxBuffer[5];
@@ -82,6 +91,20 @@ void processPacket() {
 
         sendAck();
         startPWM(brightness, duration, mode);
+      }
+      break;
+
+      case ADC_ON_ID:
+      {
+        sendAck();
+        adcStreaming = true;
+      }
+      break;
+
+       case ADC_OFF_ID:
+      {
+        sendAck();
+        adcStreaming = false;
       }
       break;
   }
@@ -144,9 +167,41 @@ void startPWM(uint8_t brightness, uint16_t duration, uint8_t mode)
   }
 }
 
+void handleADCstreaming()
+{
+  if(adcStreaming)
+  {
+    uint32_t currentMillis = millis();
+
+    if(currentMillis - previousADCmillis >= ADC_INTERVAL)
+    {
+      previousADCmillis = currentMillis;
+
+      uint16_t adcValue = analogRead(ANALOG_PIN);
+
+      sendADCvalue(adcValue);
+    }
+  }
+}
+
+void sendADCvalue(uint16_t adcValue)
+{
+  uint8_t adcPacket[4];
+
+  //Header
+  adcPacket[0] = 0xAA;
+
+  adcPacket[1] = adcValue & 0xFF;
+  adcPacket[2] = (adcValue >> 8) & 0xFF;
+
+  adcPacket[3] = 0xFF;
+
+  Serial.write(adcPacket, sizeof(adcPacket));
+}
+
 void setup() {
 
-  Serial.begin(9600);
+  Serial.begin(115200);
 
   pinMode(LED_BUILTIN, OUTPUT);
 
@@ -164,4 +219,6 @@ void loop() {
     packetReady = false;
     rxIndex = 0;
   }
+
+  handleADCstreaming();
 }
