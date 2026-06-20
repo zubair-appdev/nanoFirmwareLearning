@@ -24,7 +24,7 @@ const uint8_t HARDWARE_TIMER_ON_ID = 0x06;
 const uint8_t HARDWARE_TIMER_OFF_ID = 0x07;
 
 // PIN NAMES
-const uint8_t PWM_PIN = 10;
+const uint8_t PWM_PIN = 11;
 
 const uint8_t ANALOG_PIN = A1;
 
@@ -49,6 +49,16 @@ ISR(TIMER1_COMPA_vect)
 
 void setupTimer1()
 {
+  /*
+  | Timer  | Bits   | Common Arduino Owner        | PWM Pins |
+| ------ | ------ | --------------------------- | -------- |
+| Timer0 | 8-bit  | millis(), micros(), delay() | D5, D6   |
+| Timer1 | 16-bit | Servo library               | D9, D10  |
+| Timer2 | 8-bit  | tone()                      | D3, D11  |
+
+  */
+
+  // So we are modifying Timer1 so D9 and D10 may behave improper so if you use those pins change to other
     cli(); // Disable interrupts
 
     TCCR1A = 0;
@@ -308,7 +318,7 @@ void setup() {
                   emergencyStopISR,FALLING);
 
   // Setting Hardware Timer Of 2ms
-  setupTimer1();
+   setupTimer1();
 
 }
 
