@@ -24,10 +24,22 @@ const uint8_t PWM_PIN = 10;
 
 const uint8_t ANALOG_PIN = A1;
 
+const uint8_t INTRPT_PIN_2 = 2;
+
 // GLOBAL VARIABLES FOR ADC SENSING
 bool adcStreaming = false;
 uint32_t previousADCmillis = 0;
 const uint16_t ADC_INTERVAL = 2;
+
+// GLOBAL VARIABLE FOR EXTERNAL INTERRUPT
+volatile bool emergencyStop = false;
+
+void sendAck(const uint8_t normal = 0xFF);
+
+void emergencyStopISR()
+{
+  emergencyStop = true;
+}
 
 void receivePacket() 
 {
@@ -110,17 +122,35 @@ void processPacket() {
   }
 }
 
-void sendAck() 
+void sendAck(const uint8_t normal)
 {
-  uint8_t ackPacket[] = 
-  {
-    0x41,
-    0x42,
-    0x43
-  };
+    if(normal == 0xFF)
+    {
+        uint8_t ackPacket[] =
+        {
+            0x41,
+            0x42,
+            0x43
+        };
 
-  Serial.write(ackPacket,
-               sizeof(ackPacket));
+        Serial.write(ackPacket,
+                     sizeof(ackPacket));
+    }
+
+    if(normal == 0xAA)
+    {
+        uint8_t ackPacket[] =
+        {
+            0x55,
+            0x66,
+            0x77,
+            0x88,
+            0x99
+        };
+
+        Serial.write(ackPacket,
+                     sizeof(ackPacket));
+    }
 }
 
 void blinkLed(uint16_t count, uint8_t duration) 
@@ -205,8 +235,14 @@ void setup() {
 
   pinMode(LED_BUILTIN, OUTPUT);
 
-  //PWM Raw Thing
+  // PWM Raw Thing
   pinMode(PWM_PIN, OUTPUT);
+
+  //External Interuupt 
+  pinMode(INTRPT_PIN_2,INPUT_PULLUP);
+
+  attachInterrupt(digitalPinToInterrupt(INTRPT_PIN_2),
+                  emergencyStopISR,FALLING);
 }
 
 void loop() {
@@ -218,6 +254,14 @@ void loop() {
 
     packetReady = false;
     rxIndex = 0;
+  }
+
+  if(emergencyStop)
+  {
+    adcStreaming = false;
+    emergencyStop = false;
+    sendAck(0xAA);
+
   }
 
   handleADCstreaming();
