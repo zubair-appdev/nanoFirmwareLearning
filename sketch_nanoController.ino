@@ -16,8 +16,12 @@ bool packetReady = false;
 // Command Id's from GUI
 const uint8_t CMD_ID = 0x01;
 const uint8_t PWM_ID = 0x02;
+
 const uint8_t ADC_ON_ID = 0x03;
 const uint8_t ADC_OFF_ID = 0x04;
+
+const uint8_t HARDWARE_TIMER_ON_ID = 0x06;
+const uint8_t HARDWARE_TIMER_OFF_ID = 0x07;
 
 // PIN NAMES
 const uint8_t PWM_PIN = 10;
@@ -27,12 +31,57 @@ const uint8_t ANALOG_PIN = A1;
 const uint8_t INTRPT_PIN_2 = 2;
 
 // GLOBAL VARIABLES FOR ADC SENSING
-bool adcStreaming = false;
+volatile bool adcStreaming = false;
 uint32_t previousADCmillis = 0;
 const uint16_t ADC_INTERVAL = 2;
 
 // GLOBAL VARIABLE FOR EXTERNAL INTERRUPT
 volatile bool emergencyStop = false;
+
+// GLOBAL VARIABLE FOR HARDWARE TIMER
+volatile bool timerEvent = false;
+volatile bool QtTimerFlag = false;
+
+ISR(TIMER1_COMPA_vect)
+{
+    timerEvent = true;
+}
+
+void setupTimer1()
+{
+    cli(); // Disable interrupts
+
+    TCCR1A = 0;
+    TCCR1B = 0;
+
+    TCNT1 = 0;
+
+    // Prescaler = 64
+    TCCR1B |= (1 << WGM12);   // CTC Mode
+    TCCR1B |= (1 << CS11);
+    TCCR1B |= (1 << CS10);
+
+    // 6ms interrupt
+    OCR1A = 1499;
+
+    TIMSK1 |= (1 << OCIE1A);
+
+    sei(); // Enable interrupts
+}
+
+void sendTimerPacket()
+{
+    uint8_t packet[] =
+    {
+        0x11,
+        0x22,
+        0x33,
+        0x44
+    };
+
+    Serial.write(packet, sizeof(packet));
+}
+
 
 void sendAck(const uint8_t normal = 0xFF);
 
@@ -117,6 +166,20 @@ void processPacket() {
       {
         sendAck();
         adcStreaming = false;
+      }
+      break;
+
+      case HARDWARE_TIMER_ON_ID:
+      {
+        sendAck();
+        QtTimerFlag = true;
+      }
+      break;
+
+       case HARDWARE_TIMER_OFF_ID:
+      {
+        sendAck();
+        QtTimerFlag = false;
       }
       break;
   }
@@ -238,24 +301,30 @@ void setup() {
   // PWM Raw Thing
   pinMode(PWM_PIN, OUTPUT);
 
-  //External Interuupt 
+  // External Interuupt 
   pinMode(INTRPT_PIN_2,INPUT_PULLUP);
 
   attachInterrupt(digitalPinToInterrupt(INTRPT_PIN_2),
                   emergencyStopISR,FALLING);
+
+  // Setting Hardware Timer Of 2ms
+  setupTimer1();
+
 }
 
 void loop() {
 
   receivePacket();
 
-  if (packetReady) {
+  if (packetReady) 
+  {
     processPacket();
 
     packetReady = false;
     rxIndex = 0;
   }
 
+  // External Interrupt Flag
   if(emergencyStop)
   {
     adcStreaming = false;
@@ -263,6 +332,17 @@ void loop() {
     sendAck(0xAA);
 
   }
+
+  // Hardware Timer Interrupt
+   if(timerEvent)
+    {
+        timerEvent = false;
+
+          if(QtTimerFlag)
+          {
+            sendTimerPacket();
+          }
+    }
 
   handleADCstreaming();
 }
