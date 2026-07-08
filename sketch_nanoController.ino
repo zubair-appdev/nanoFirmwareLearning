@@ -71,8 +71,12 @@ void setupTimer1()
     TCCR1B |= (1 << CS11);
     TCCR1B |= (1 << CS10);
 
-    // 6ms interrupt
-    OCR1A = 1499;
+    //interrupt
+    // 6ms = 1499
+    // 2ms = 499
+    // 100 Us = 24
+    // 500 Us = 124
+    OCR1A = 124;
 
     TIMSK1 |= (1 << OCIE1A);
 
@@ -317,7 +321,7 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(INTRPT_PIN_2),
                   emergencyStopISR,FALLING);
 
-  // Setting Hardware Timer Of 2ms
+  // Setting Hardware Timer
    setupTimer1();
 
 }
