@@ -72,10 +72,12 @@ void setupTimer1()
     TCCR1B |= (1 << CS10);
 
     //interrupt
+    //this clone board only supports 115200 baud so we can do max 500 Us timer
     // 6ms = 1499
     // 2ms = 499
     // 100 Us = 24
     // 500 Us = 124
+    
     OCR1A = 124;
 
     TIMSK1 |= (1 << OCIE1A);
